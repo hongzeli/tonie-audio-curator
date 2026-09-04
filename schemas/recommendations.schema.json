@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tonie-audio-curator.local/schemas/recommendations.schema.json",
+  "title": "Tonie Audio Recommendations",
+  "type": "object",
+  "required": ["schema_version", "created_at", "profile", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "profile": {"type": "object"},
+    "items": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "items": {"$ref": "#/$defs/recommendation"}
+    }
+  },
+  "$defs": {
+    "recommendation": {
+      "type": "object",
+      "required": ["id", "title", "type", "language", "duration_seconds", "age_range", "recommendation_reason", "source_name", "source_page_url", "license", "download_status", "safety_tags"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"type": "integer", "minimum": 1, "maximum": 20},
+        "title": {"type": "string", "minLength": 1},
+        "type": {"enum": ["story", "music", "educational", "bedtime", "other"]},
+        "language": {"type": "string", "minLength": 2},
+        "duration_seconds": {
+          "oneOf": [
+            {"type": "number", "minimum": 0},
+            {"const": "unknown"}
+          ]
+        },
+        "age_range": {"type": "string"},
+        "recommendation_reason": {"type": "string", "minLength": 1},
+        "source_name": {"type": "string", "minLength": 1},
+        "source_page_url": {"type": "string", "format": "uri"},
+        "license": {"type": "string", "minLength": 1},
+        "license_url": {"type": ["string", "null"]},
+        "direct_download_url": {"type": ["string", "null"]},
+        "download_status": {"enum": ["available", "unavailable", "unknown"]},
+        "safety_tags": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

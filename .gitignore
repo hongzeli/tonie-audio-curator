@@ -1,0 +1,15 @@
+.env
+.venv/
+workspace/
+output/
+downloads/
+*.mp3
+*.wav
+*.zip
+credentials*
+rclone.conf
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+
