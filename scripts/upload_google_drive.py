@@ -17,16 +17,22 @@ def prepare_upload_plan(
     config_path: Path = PROJECT_ROOT / "config" / "google-drive.json",
 ) -> dict:
     plan_path = job_dir / "drive-upload-plan.json"
-    if plan_path.exists():
-        return read_json(plan_path)
+    previous = read_json(plan_path) if plan_path.exists() else {}
 
-    config = read_json(config_path)
-    parent_id = config.get("delivery_folder_id")
+    parent_id = previous.get("target_parent_id") or read_json(config_path).get("delivery_folder_id")
     if not parent_id:
         raise ValueError("config/google-drive.json must contain delivery_folder_id")
 
     delivery_dir = job_dir / "tonie-01"
-    paths = sorted(delivery_dir.glob("*.mp3"))
+    playlist = read_json(delivery_dir / "playlist.json")
+    paths = []
+    for item in playlist["items"]:
+        path = delivery_dir / item["filename"]
+        if path.parent.resolve() != delivery_dir.resolve() or path.suffix.lower() != ".mp3":
+            raise ValueError("playlist must reference MP3 files directly in tonie-01")
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        paths.append(path)
     for name in ("playlist.json", "licenses.txt"):
         path = delivery_dir / name
         if path.is_file():
@@ -34,10 +40,11 @@ def prepare_upload_plan(
 
     timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     plan = {
+        **previous,
         "schema_version": "2.0-fast",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": previous.get("created_at") or datetime.now(UTC).isoformat(),
         "target_parent_id": parent_id,
-        "destination_name": f"{timestamp}-{secrets.token_hex(2)}",
+        "destination_name": previous.get("destination_name") or f"{timestamp}-{secrets.token_hex(2)}",
         "readback_required": False,
         "files": [
             {

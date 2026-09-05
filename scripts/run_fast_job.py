@@ -38,6 +38,7 @@ def run_job(
         "requested": processing["summary"]["requested"],
         "downloaded": processing["summary"]["downloaded"],
         "converted": delivery["mp3_count"],
+        "reused": processing["summary"]["reused"],
         "failed": processing["summary"]["failed"] + processing["summary"]["download_failed"],
         "delivery_dir": delivery["delivery_dir"],
         "zip_created": False,
