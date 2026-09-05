@@ -3,5 +3,8 @@
   "target_root_id": "1QJbEZBo0BqsU-018KfWzvACu7eZHyi6g",
   "verified_at": "2026-09-04T15:32:34.7567126+02:00",
   "shared": false,
-  "delivery_subfolder": "Tonie Audio"
+  "delivery_subfolder": "Tonie Audio",
+  "delivery_folder_id": "14xX9531yiOGMpI_nUpJv_uxY3yC37tGa",
+  "search_before_each_upload": false,
+  "readback_after_upload": false
 }

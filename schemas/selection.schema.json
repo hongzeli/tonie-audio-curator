@@ -10,7 +10,6 @@
     "job_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"},
     "confirmed_at": {"type": "string", "format": "date-time"},
     "source_recommendations": {"type": "string"},
-    "single_package": {"type": "boolean", "default": false},
     "items": {
       "type": "array",
       "minItems": 1,
@@ -20,7 +19,7 @@
         "required": ["id", "title", "type", "source_page_url", "direct_download_url", "license"],
         "additionalProperties": true,
         "properties": {
-          "id": {"type": "integer", "minimum": 1, "maximum": 20},
+          "id": {"type": "integer", "minimum": 1, "maximum": 8},
           "title": {"type": "string", "minLength": 1},
           "type": {"type": "string"},
           "source_page_url": {"type": "string", "format": "uri"},
@@ -33,4 +32,3 @@
     }
   }
 }
-

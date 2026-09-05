@@ -6,14 +6,10 @@
   "true_peak_dbtp": -1.5,
   "loudness_range_lu": 7.0,
   "id3_version": 3,
-  "preserve_mono_for_speech": true,
-  "denoise": {
-    "enabled": true,
-    "noise_floor_threshold_db": -45.0,
-    "filter": "afftdn=nf=-25:tn=1"
-  },
   "max_filename_chars": 128,
-  "max_tonie_duration_seconds": 5400,
-  "duration_tolerance_seconds": 0.5
+  "single_pass_loudnorm": true,
+  "denoise_enabled": false,
+  "input_probe_enabled": false,
+  "output_verification_enabled": false,
+  "duration_limit_check_enabled": false
 }
-

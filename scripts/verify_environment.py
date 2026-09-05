@@ -15,7 +15,7 @@ except ModuleNotFoundError:
 
 def check_environment(project_root: Path = PROJECT_ROOT) -> dict:
     executables = {}
-    for name in ("python", "ffmpeg", "ffprobe", "git", "gh"):
+    for name in ("python", "ffmpeg", "git", "gh"):
         location = shutil.which(name)
         executables[name] = {"available": location is not None, "path": location}
 
@@ -31,7 +31,7 @@ def check_environment(project_root: Path = PROJECT_ROOT) -> dict:
 
     required_ok = (
         sys.version_info >= (3, 11)
-        and all(executables[name]["available"] for name in ("python", "ffmpeg", "ffprobe"))
+        and all(executables[name]["available"] for name in ("python", "ffmpeg"))
         and all(packages.values())
     )
     return {
@@ -55,7 +55,17 @@ def main() -> int:
     result = check_environment()
     if args.json_output:
         write_json(args.json_output, result)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": result["ok"],
+                "python_supported": result["python_supported"],
+                "ffmpeg_available": result["executables"]["ffmpeg"]["available"],
+                "packages_available": all(result["packages"].values()),
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0 if result["ok"] else 1
 
 

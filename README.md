@@ -1,63 +1,67 @@
 # Tonie Audio Curator
 
-Tonie Audio Curator combines an AI-guided recommendation workflow with deterministic local Python/FFmpeg tools. It finds verifiable, age-appropriate audio, waits for explicit confirmation, safely downloads only confirmed licensed items, normalizes them, groups them into Creative-Tonie-compatible 90-minute packages, and prepares verified delivery through the connected Google Drive plugin.
+一个面向 Creative-Tonie 的极速儿童音频工作流：AI 研究少量真实候选并保留教育机构、评论、播放量和知名度信号；用户确认后，本地工具并发下载、单遍转换，并把最终 MP3 直接交付到 Google Drive。
 
-## Safety and product boundaries
+## 主要特性
 
-- A recommendation run contains exactly 20 real, source-backed items and never starts a download.
-- Downloads require explicit user confirmation and an unambiguous reusable license.
-- The downloader rejects local/private network destinations, suspicious MIME/signature pairs, oversized files, excessive redirects, and invalid audio.
-- The project never extracts from streaming services, converts YouTube, bypasses DRM/login/paywalls/regions, or generates preview files.
-- Local tools do not store Google Drive or GitHub credentials.
+- 默认最多推荐 8 条，只对最多 12 个候选做口碑研究。
+- 只有明确确认的编号才会下载。
+- 4 路并发下载，25 秒超时，最多 3 次尝试。
+- 每首下载完成即保存状态，支持中断后继续。
+- 2 路并行、单遍 FFmpeg 转为 MP3。
+- 直接生成 tonie-01；不复制音频、不分包、不生成 ZIP。
+- Drive 使用缓存的 Tonie Audio ID，上传 MP3、播放清单和许可证，不回读。
+- 命令只向 AI 返回紧凑摘要，详细状态留在本地。
 
-## Requirements
+## 安装
 
-- Windows 10/11
-- Python 3.11 or newer
-- FFmpeg and ffprobe on `PATH`
-- Git (GitHub CLI is also needed for repository creation/push)
-- A connected Google Drive plugin in Codex for delivery
+需要 Windows 10/11、Python 3.11+、FFmpeg 和 Git。
 
-Install and check the local environment:
+    .\setup.ps1
+    .\.venv\Scripts\python.exe scripts\verify_environment.py
 
-```powershell
-.\setup.ps1
-.\.venv\Scripts\python.exe scripts\verify_environment.py
-```
+## 使用
 
-## Workflow
+1. 向 Codex 提供年龄、语言、兴趣、类型、禁止内容和单曲时长。
+2. Codex 可先用以下命令把 Commons 候选写入本地，只读取返回的数量摘要；随后仅对最多 12 个候选研究口碑：
 
-1. Ask Codex to use the project-level `tonie-audio-curator` Skill and provide the child's age, languages, interests, content preferences, exclusions, and desired total duration.
-2. Codex researches and writes exactly 20 source-backed items to `workspace/<job-id>/recommendations.json`, then stops.
-3. Explicitly confirm recommendation numbers. Codex validates and writes `selection.json`.
-4. Run the deterministic stages:
+       .\.venv\Scripts\python.exe scripts\research_commons.py "关键词" --output workspace\<job-id>\candidates.json
 
-```powershell
-.\.venv\Scripts\python.exe scripts\download_audio.py workspace\<job-id>\selection.json
-.\.venv\Scripts\python.exe scripts\process_audio.py workspace\<job-id>\download-report.json
-.\.venv\Scripts\python.exe scripts\package_audio.py output\<job-id>\processing-report.json
-.\.venv\Scripts\python.exe scripts\upload_google_drive.py prepare output\<job-id> --target-folder-id 1QJbEZBo0BqsU-018KfWzvACu7eZHyi6g
-```
+3. Codex 最多显示 8 条真实推荐并等待确认。
+4. 确认后执行：
 
-The final upload is performed by Codex through the connected Google Drive plugin. The unique `Chatgpt工作区` folder ID is recorded in `config/google-drive.json`; re-search it before the first upload on another account or if the folder moves. Create `Tonie Audio/<YYYY-MM-DD_job-id>`, upload only manifest-listed deliverables, list the destination again, and verify size and parent ID. If duplicate root folders exist, the workflow stops for user selection.
+    .\.venv\Scripts\python.exe scripts\run_fast_job.py workspace\<job-id>\selection.json
 
-## Input formats
+命令生成：
 
-`schemas/recommendations.schema.json` defines the fixed 20-item research result. `schemas/selection.schema.json` defines the explicitly confirmed subset and requires direct download URLs and non-unknown licenses. Keep recommendation and selection state under `workspace/`; it is intentionally ignored by Git.
+    output/<job-id>/
+    ├── tonie-01/
+    │   ├── *.mp3
+    │   ├── playlist.json
+    │   └── licenses.txt
+    ├── processing-report.json
+    ├── summary.json
+    └── drive-upload-plan.json
 
-## Audio defaults
+Codex 根据上传计划创建一个随机任务目录，并行上传 tonie-01 中的全部文件。
 
-Defaults live in `config/audio-profile.json`: MP3, 44.1 kHz, 160 kbps CBR, -18 LUFS, -1.5 dBTP, ID3v2.3, and at most 5,400 seconds per package. The first FFmpeg pass measures loudness; the second and only lossy encode applies measured normalization. Conservative denoising is added only when the analyzer returns a noise floor above the configured threshold.
+## 默认音频参数
 
-## Tests
+- MP3
+- 44.1 kHz
+- 160 kbps
+- 立体声
+- 单遍 loudnorm 请求目标：-18 LUFS、-1.5 dBTP、LRA 7
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check .
-```
+极速模式不执行输入探测、噪声分析或输出测量，因此这些参数是转换请求值，不是验证结果。
 
-CI performs offline code tests and linting only. It does not research, download, upload, or retain audio.
+## 明确省略的校验
 
-## Project data and retention
+不执行公网 URL、MIME/文件头、SHA-256、重复内容、独立解码、输出响度/峰值、90 分钟限制和 Drive 回读校验。只保留许可证准入、文件大小限制、网络超时，以及 FFmpeg/上传接口的自然成功或失败结果。
 
-Audio, downloads, task state, archives, credentials, and child profiles are excluded from Git. Raw downloads default to a seven-day local retention policy; deletion is an explicit user/admin operation and is not performed automatically by these tools.
+## 测试
+
+    .\.venv\Scripts\python.exe -m pytest -q --basetemp workspace\pytest-temp
+    .\.venv\Scripts\python.exe -m ruff check .
+
+测试不会执行真实联网下载或 Drive 上传。

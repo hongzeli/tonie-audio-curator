@@ -17,7 +17,6 @@ function Require-Command {
 
 Require-Command python
 Require-Command ffmpeg
-Require-Command ffprobe
 
 if (-not (Test-Path -LiteralPath $PythonExecutable)) {
     python -m venv $VirtualEnvironment
@@ -36,4 +35,3 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Write-Warning "GitHub CLI (gh) is not installed; install and authenticate it before repository creation."
 }
 Write-Host "Google Drive delivery requires the connected Codex Google Drive plugin; credentials are not stored locally."
-

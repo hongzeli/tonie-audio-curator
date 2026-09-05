@@ -2,35 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 try:
-    from scripts.common import read_json, safe_filename, write_json
+    from scripts.common import read_json, write_json
 except ModuleNotFoundError:
-    from common import read_json, safe_filename, write_json
-
-
-def group_in_order(items: list[dict], max_seconds: float = 5400, single_package: bool = False) -> tuple[list[list[dict]], list[dict]]:
-    groups: list[list[dict]] = [[]]
-    overflow: list[dict] = []
-    used = 0.0
-    for item in items:
-        duration = float(item["after"]["duration_seconds"])
-        if duration > max_seconds:
-            overflow.append({**item, "overflow_reason": "single item exceeds package duration"})
-            continue
-        if used + duration > max_seconds:
-            if single_package:
-                overflow.append({**item, "overflow_reason": "single-package duration limit exceeded"})
-                continue
-            groups.append([])
-            used = 0.0
-        groups[-1].append(item)
-        used += duration
-    return [group for group in groups if group], overflow
+    from common import read_json, write_json
 
 
 def _license_text(items: list[dict]) -> str:
@@ -44,88 +22,79 @@ def _license_text(items: list[dict]) -> str:
                     f"Source: {item.get('source_page_url') or 'unknown'}",
                     f"License: {item.get('license') or 'unknown'}",
                     f"License URL: {item.get('license_url') or 'unknown'}",
-                    f"Source SHA-256: {item.get('sha256') or 'unknown'}",
                 )
             )
         )
     return "\n\n".join(blocks) + "\n"
 
 
-def create_package(processing_report_path: Path, single_package: bool = False) -> dict:
+def finalize_delivery(processing_report_path: Path) -> dict:
     report = read_json(processing_report_path)
     job_dir = processing_report_path.parent
-    items = [item for item in report["items"] if item["status"] == "processed"]
-    limit = float(report["audio_profile"]["max_tonie_duration_seconds"])
-    groups, overflow = group_in_order(items, limit, single_package)
-    package_summaries = []
+    delivery_dir = job_dir / "tonie-01"
+    delivery_dir.mkdir(parents=True, exist_ok=True)
+    processed = [item for item in report["items"] if item["status"] == "processed"]
 
-    for package_index, group in enumerate(groups, 1):
-        package_dir = job_dir / f"tonie-{package_index:02d}"
-        package_dir.mkdir(parents=True, exist_ok=True)
-        playlist_items = []
-        for track_index, item in enumerate(group, 1):
-            source = Path(item["output_path"])
-            name = safe_filename(f"{track_index:02d}-{item['title']}", ".mp3", 128)
-            destination = package_dir / name
-            shutil.copy2(source, destination)
-            playlist_items.append(
-                {
-                    "position": track_index,
-                    "recommendation_id": item["id"],
-                    "title": item["title"],
-                    "filename": name,
-                    "duration_seconds": item["after"]["duration_seconds"],
-                    "source_page_url": item.get("source_page_url"),
-                    "license": item.get("license"),
-                }
-            )
-        duration = sum(float(entry["duration_seconds"]) for entry in playlist_items)
-        playlist = {
-            "schema_version": "1.0",
-            "job_id": report["job_id"],
-            "package": package_index,
-            "duration_seconds": duration,
-            "duration_limit_seconds": limit,
-            "items": playlist_items,
-        }
-        write_json(package_dir / "playlist.json", playlist)
-        (package_dir / "licenses.txt").write_text(_license_text(group), encoding="utf-8", newline="\n")
-        package_summaries.append(
-            {"name": package_dir.name, "path": str(package_dir), "duration_seconds": duration, "item_count": len(group)}
+    playlist_items = []
+    for position, item in enumerate(processed, 1):
+        output = Path(item["output_path"])
+        playlist_items.append(
+            {
+                "position": position,
+                "recommendation_id": item["id"],
+                "title": item["title"],
+                "filename": output.name,
+                "duration_seconds": item.get("duration_seconds", "unknown"),
+                "source_page_url": item.get("source_page_url"),
+                "license": item.get("license"),
+            }
         )
 
-    skipped = [item for item in report["items"] if item["status"] != "processed"]
-    write_json(job_dir / "overflow-items.json", overflow)
-    write_json(job_dir / "skipped-items.json", skipped)
-    archive = job_dir / "tonie-audio-package.zip"
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
-        for path in sorted(job_dir.rglob("*")):
-            if path.is_file() and path != archive and "individual-mp3" not in path.parts:
-                bundle.write(path, path.relative_to(job_dir))
-    result = {
-        "schema_version": "1.0",
+    playlist = {
+        "schema_version": "2.0-fast",
+        "job_id": report["job_id"],
+        "duration_limit_checked": False,
+        "items": playlist_items,
+    }
+    write_json(delivery_dir / "playlist.json", playlist)
+    (delivery_dir / "licenses.txt").write_text(_license_text(processed), encoding="utf-8", newline="\n")
+
+    summary = {
+        "schema_version": "2.0-fast",
         "job_id": report["job_id"],
         "created_at": datetime.now(UTC).isoformat(),
-        "packages": package_summaries,
-        "overflow_count": len(overflow),
-        "skipped_count": len(skipped),
-        "archive_path": str(archive),
-        "archive_size_bytes": archive.stat().st_size,
+        **report["summary"],
+        "delivery_dir": str(delivery_dir.resolve()),
+        "mp3_count": len(processed),
+        "zip_created": False,
+        "duration_limit_checked": False,
+        "input_audio_verified": False,
+        "output_audio_verified": False,
+        "drive_readback_verified": False,
     }
-    write_json(job_dir / "package-report.json", result)
-    return result
+    write_json(job_dir / "summary.json", summary)
+    return summary
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Group normalized MP3s into 90-minute Tonie packages")
+    parser = argparse.ArgumentParser(description="Create playlist and license files without ZIP packaging")
     parser.add_argument("processing_report", type=Path)
-    parser.add_argument("--single-package", action="store_true")
     args = parser.parse_args()
-    result = create_package(args.processing_report.resolve(), args.single_package)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
+    result = finalize_delivery(args.processing_report.resolve())
+    print(
+        json.dumps(
+            {
+                "job_id": result["job_id"],
+                "mp3_count": result["mp3_count"],
+                "failed": result["failed"] + result["download_failed"],
+                "delivery_dir": result["delivery_dir"],
+                "zip_created": False,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0 if result["mp3_count"] else 2
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

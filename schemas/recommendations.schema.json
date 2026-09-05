@@ -11,18 +11,18 @@
     "profile": {"type": "object"},
     "items": {
       "type": "array",
-      "minItems": 20,
-      "maxItems": 20,
+      "minItems": 1,
+      "maxItems": 8,
       "items": {"$ref": "#/$defs/recommendation"}
     }
   },
   "$defs": {
     "recommendation": {
       "type": "object",
-      "required": ["id", "title", "type", "language", "duration_seconds", "age_range", "recommendation_reason", "source_name", "source_page_url", "license", "download_status", "safety_tags"],
+      "required": ["id", "title", "type", "language", "duration_seconds", "age_range", "recommendation_reason", "source_name", "source_page_url", "license", "download_status", "safety_tags", "reputation"],
       "additionalProperties": true,
       "properties": {
-        "id": {"type": "integer", "minimum": 1, "maximum": 20},
+        "id": {"type": "integer", "minimum": 1, "maximum": 8},
         "title": {"type": "string", "minLength": 1},
         "type": {"enum": ["story", "music", "educational", "bedtime", "other"]},
         "language": {"type": "string", "minLength": 2},
@@ -40,7 +40,18 @@
         "license_url": {"type": ["string", "null"]},
         "direct_download_url": {"type": ["string", "null"]},
         "download_status": {"enum": ["available", "unavailable", "unknown"]},
-        "safety_tags": {"type": "array", "items": {"type": "string"}}
+        "safety_tags": {"type": "array", "items": {"type": "string"}},
+        "reputation": {
+          "type": "object",
+          "required": ["score", "work_evidence", "recording_evidence"],
+          "additionalProperties": false,
+          "properties": {
+            "score": {"type": "number", "minimum": 0, "maximum": 100},
+            "work_evidence": {"type": "array", "maxItems": 3, "items": {"type": "string"}},
+            "recording_evidence": {"type": "array", "maxItems": 2, "items": {"type": "string"}},
+            "play_count_signal": {"type": ["string", "null"]}
+          }
+        }
       }
     }
   }
